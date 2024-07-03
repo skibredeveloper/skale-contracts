@@ -43,7 +43,7 @@ contract QuizMatch is AccessControl {
             delete userQuestions[matchId][matchEntry.users[i]];
         }
         
-        delete matches[matchId];
+        //delete matches[matchId];
         emit MatchCompleted(matchId);
     }
 
