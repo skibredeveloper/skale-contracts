@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.20;
 
-contract QuizMatch {
-    address public owner;
+import "@openzeppelin/contracts/access/AccessControl.sol";
+
+contract QuizMatch is AccessControl {
+    bytes32 public constant OWNER_ROLE = keccak256("OWNER_ROLE");
 
     struct Match {
         address[] users;
+        mapping(address => string) scores;
     }
 
     mapping(string => Match) internal matches;
@@ -14,15 +17,16 @@ contract QuizMatch {
     event QuestionAttempted(string matchId, address userId, string questionId);
     event MatchCompleted(string matchId);
     event UserAddedToMatch(string matchId, address userId, string questionIds);
-    event scoreSubmitted(string matchId, address userId, string score);
+    event ScoreSubmitted(string matchId, address userId, string score);
 
     modifier onlyOwner() {
-        require(msg.sender == owner, "Only owner can perform this action");
+        require(hasRole(OWNER_ROLE, msg.sender), "Only owner can perform this action");
         _;
     }
 
     constructor() {
-        owner = 0x5Ff8121a6e761396d9F5B0B7A27E40235a9747Bd;
+        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender); // Admin can manage roles
+        _grantRole(OWNER_ROLE, msg.sender); // Owner role assigned to contract deployer
     }
 
     function addUserToMatch(string memory matchId, address userId, string memory questions) public onlyOwner {
@@ -50,8 +54,22 @@ contract QuizMatch {
         emit QuestionAttempted(matchId, msg.sender, questionId);
     }
 
-    function submitScore(string memory matchId, address userId, string memory score) public onlyOwner{
-        emit scoreSubmitted(matchId, userId, score);
+    function submitScore(string memory matchId, address userId, string memory score) public onlyOwner {
+        Match storage matchEntry = matches[matchId];
+        matchEntry.scores[userId] = score;
+        emit ScoreSubmitted(matchId, userId, score);
+    }
+
+    function getUserScores(string memory matchId) public view returns (address[] memory, string[] memory) {
+        Match storage matchEntry = matches[matchId];
+        address[] memory users = matchEntry.users;
+        string[] memory scores = new string[](users.length);
+
+        for (uint256 i = 0; i < users.length; i++) {
+            scores[i] = matchEntry.scores[users[i]];
+        }
+
+        return (users, scores);
     }
 
     function removeQuestionId(string memory questions, string memory questionId) internal pure returns (string memory) {
@@ -79,8 +97,13 @@ contract QuizMatch {
 
         return string(result);
     }
-
     function getUserQuestions(string memory matchId, address userId) public view returns (string memory) {
         return userQuestions[matchId][userId];
+    }
+
+    // Function to transfer OWNER_ROLE to a new address
+    function transferOwnership(address newOwner) public onlyOwner {
+        grantRole(OWNER_ROLE, newOwner);
+        revokeRole(OWNER_ROLE, msg.sender);
     }
 }
